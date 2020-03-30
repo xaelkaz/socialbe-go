@@ -9,6 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"io/ioutil"
 	"net/http"
+	"social-golang/src/util"
 	"strings"
 	"time"
 )
@@ -126,8 +127,10 @@ func GetPostAll(w http.ResponseWriter, req *http.Request) {
 	if err2 != nil {
 		fmt.Println(err2)
 	}
-	json.NewEncoder(w).Encode(post)
-
+	util.JSON(w, 200, util.T{
+		"posts":   post,
+		"status": 0,
+	})
 }
 func GetPostByCode(w http.ResponseWriter, req *http.Request) {
 	//

@@ -3,16 +3,21 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
-	"social-golang/src/models"
-	"social-golang/src/repository"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"io/ioutil"
+	"log"
+	"social-golang/src/models"
+	"social-golang/src/repository"
+	"social-golang/src/util"
+
 	"net/http"
 	"time"
 )
 
 func AddComment(w http.ResponseWriter, req *http.Request) {
+	token := context.Get(req, "token").(models.Token)
 	b, err := ioutil.ReadAll(req.Body)
 	defer req.Body.Close()
 	if err != nil {
@@ -24,7 +29,9 @@ func AddComment(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 	}
-	//
+
+	log.Println("Token", token.ID)
+	log.Println("Email", token.Email)
 
 	commentRepository := repository.NewCommentRepository("Comment")
 	postRepository := repository.NewPostRepository("Post")
@@ -58,11 +65,14 @@ func AddComment(w http.ResponseWriter, req *http.Request) {
 func GetCommentAll(w http.ResponseWriter, req *http.Request) {
 
 	commentRepository := repository.NewCommentRepository("Comment")
-	comment, err2 := commentRepository.FindAll()
-	if err2 != nil {
-		fmt.Println(err2)
+	comment, err := commentRepository.FindAll()
+	if err != nil {
+		fmt.Println(err)
 	}
-	json.NewEncoder(w).Encode(comment)
+	util.JSON(w, 200, util.T{
+		"comment": comment,
+		"status":  0,
+	})
 }
 
 func DeleteCommentById(w http.ResponseWriter, req *http.Request) {

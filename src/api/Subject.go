@@ -8,6 +8,7 @@ import (
 	"social-golang/src/repository"
 	"io/ioutil"
 	"net/http"
+	"social-golang/src/util"
 	"strconv"
 	"strings"
 )
@@ -78,7 +79,10 @@ func GetSubjectAll(w http.ResponseWriter, req *http.Request) {
 	if err2 != nil {
 		fmt.Println(err2)
 	}
-	json.NewEncoder(w).Encode(post)
+	util.JSON(w, 200, util.T{
+		"subjects":   post,
+		"status": 0,
+	})
 }
 
 func GetSubjectByMajorEmail(w http.ResponseWriter, req *http.Request) {
