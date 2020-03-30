@@ -18,7 +18,7 @@ import (
 	"go.mongodb.org/mongo-driver/internal"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/dns"
-	"go.mongodb.org/mongo-driver/x/network/wiremessage"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
 )
 
 // Parse parses the provided uri and returns a URI object.
@@ -53,8 +53,10 @@ type ConnString struct {
 	LocalThresholdSet                  bool
 	MaxConnIdleTime                    time.Duration
 	MaxConnIdleTimeSet                 bool
-	MaxPoolSize                        uint16
+	MaxPoolSize                        uint64
 	MaxPoolSizeSet                     bool
+	MinPoolSize                        uint64
+	MinPoolSizeSet                     bool
 	Password                           string
 	PasswordSet                        bool
 	ReadConcernLevel                   string
@@ -62,6 +64,8 @@ type ConnString struct {
 	ReadPreferenceTagSets              []map[string]string
 	RetryWrites                        bool
 	RetryWritesSet                     bool
+	RetryReads                         bool
+	RetryReadsSet                      bool
 	MaxStaleness                       time.Duration
 	MaxStalenessSet                    bool
 	ReplicaSet                         string
@@ -76,6 +80,10 @@ type ConnString struct {
 	SSLClientCertificateKeyFileSet     bool
 	SSLClientCertificateKeyPassword    func() string
 	SSLClientCertificateKeyPasswordSet bool
+	SSLCertificateFile                 string
+	SSLCertificateFileSet              bool
+	SSLPrivateKeyFile                  string
+	SSLPrivateKeyFileSet               bool
 	SSLInsecure                        bool
 	SSLInsecureSet                     bool
 	SSLCaFile                          string
@@ -86,6 +94,8 @@ type ConnString struct {
 	Username                           string
 	ZlibLevel                          int
 	ZlibLevelSet                       bool
+	ZstdLevel                          int
+	ZstdLevelSet                       bool
 
 	WTimeout              time.Duration
 	WTimeoutSet           bool
@@ -119,6 +129,7 @@ type parser struct {
 	ConnString
 
 	dnsResolver *dns.Resolver
+	tlsssl      *bool // used to determine if tls and ssl options are both specified and set differently.
 }
 
 func (p *parser) parse(original string) error {
@@ -245,6 +256,10 @@ func (p *parser) parse(original string) error {
 		return err
 	}
 
+	if err = p.validateSSL(); err != nil {
+		return err
+	}
+
 	// Check for invalid write concern (i.e. w=0 and j=true)
 	if p.WNumberSet && p.WNumber == 0 && p.JSet && p.J {
 		return writeconcern.ErrInconsistent
@@ -294,7 +309,7 @@ func (p *parser) setDefaultAuthParams(dbName string) error {
 			}
 		}
 	case "":
-		if p.AuthSource == "" {
+		if p.AuthSource == "" && (p.AuthMechanismProperties != nil || p.Username != "" || p.PasswordSet) {
 			p.AuthSource = dbName
 			if p.AuthSource == "" {
 				p.AuthSource = "admin"
@@ -365,8 +380,32 @@ func (p *parser) validateAuth() error {
 			return fmt.Errorf("SCRAM-SHA-256 cannot have mechanism properties")
 		}
 	case "":
+		if p.Username == "" && p.AuthSource != "" {
+			return fmt.Errorf("authsource without username is invalid")
+		}
 	default:
 		return fmt.Errorf("invalid auth mechanism")
+	}
+	return nil
+}
+
+func (p *parser) validateSSL() error {
+	if !p.SSL {
+		return nil
+	}
+
+	if p.SSLClientCertificateKeyFileSet {
+		if p.SSLCertificateFileSet || p.SSLPrivateKeyFileSet {
+			return errors.New("the sslClientCertificateKeyFile/tlsCertificateKeyFile URI option cannot be provided " +
+				"along with tlsCertificateFile or tlsPrivateKeyFile")
+		}
+		return nil
+	}
+	if p.SSLCertificateFileSet && !p.SSLPrivateKeyFileSet {
+		return errors.New("the tlsPrivateKeyFile URI option must be provided if the tlsCertificateFile option is specified")
+	}
+	if p.SSLPrivateKeyFileSet && !p.SSLCertificateFileSet {
+		return errors.New("the tlsCertificateFile URI option must be provided if the tlsPrivateKeyFile option is specified")
 	}
 	return nil
 }
@@ -496,13 +535,25 @@ func (p *parser) addOption(pair string) error {
 		if err != nil || n < 0 {
 			return fmt.Errorf("invalid value for %s: %s", key, value)
 		}
-		p.MaxPoolSize = uint16(n)
+		p.MaxPoolSize = uint64(n)
 		p.MaxPoolSizeSet = true
+	case "minpoolsize":
+		n, err := strconv.Atoi(value)
+		if err != nil || n < 0 {
+			return fmt.Errorf("invalid value for %s: %s", key, value)
+		}
+		p.MinPoolSize = uint64(n)
+		p.MinPoolSizeSet = true
 	case "readconcernlevel":
 		p.ReadConcernLevel = value
 	case "readpreference":
 		p.ReadPreference = value
 	case "readpreferencetags":
+		if value == "" {
+			// for when readPreferenceTags= at end of URI
+			break
+		}
+
 		tags := make(map[string]string)
 		items := strings.Split(value, ",")
 		for _, item := range items {
@@ -513,7 +564,7 @@ func (p *parser) addOption(pair string) error {
 			tags[parts[0]] = parts[1]
 		}
 		p.ReadPreferenceTagSets = append(p.ReadPreferenceTagSets, tags)
-	case "maxstaleness":
+	case "maxstaleness", "maxstalenessseconds":
 		n, err := strconv.Atoi(value)
 		if err != nil || n < 0 {
 			return fmt.Errorf("invalid value for %s: %s", key, value)
@@ -523,8 +574,27 @@ func (p *parser) addOption(pair string) error {
 	case "replicaset":
 		p.ReplicaSet = value
 	case "retrywrites":
-		p.RetryWrites = value == "true"
+		switch value {
+		case "true":
+			p.RetryWrites = true
+		case "false":
+			p.RetryWrites = false
+		default:
+			return fmt.Errorf("invalid value for %s: %s", key, value)
+		}
+
 		p.RetryWritesSet = true
+	case "retryreads":
+		switch value {
+		case "true":
+			p.RetryReads = true
+		case "false":
+			p.RetryReads = false
+		default:
+			return fmt.Errorf("invalid value for %s: %s", key, value)
+		}
+
+		p.RetryReadsSet = true
 	case "serverselectiontimeoutms":
 		n, err := strconv.Atoi(value)
 		if err != nil || n < 0 {
@@ -539,7 +609,7 @@ func (p *parser) addOption(pair string) error {
 		}
 		p.SocketTimeout = time.Duration(n) * time.Millisecond
 		p.SocketTimeoutSet = true
-	case "ssl":
+	case "ssl", "tls":
 		switch value {
 		case "true":
 			p.SSL = true
@@ -548,17 +618,33 @@ func (p *parser) addOption(pair string) error {
 		default:
 			return fmt.Errorf("invalid value for %s: %s", key, value)
 		}
+		if p.tlsssl != nil && *p.tlsssl != p.SSL {
+			return errors.New("tls and ssl options, when both specified, must be equivalent")
+		}
+
+		p.tlsssl = new(bool)
+		*p.tlsssl = p.SSL
 
 		p.SSLSet = true
-	case "sslclientcertificatekeyfile":
+	case "sslclientcertificatekeyfile", "tlscertificatekeyfile":
 		p.SSL = true
 		p.SSLSet = true
 		p.SSLClientCertificateKeyFile = value
 		p.SSLClientCertificateKeyFileSet = true
-	case "sslclientcertificatekeypassword":
+	case "sslclientcertificatekeypassword", "tlscertificatekeyfilepassword":
 		p.SSLClientCertificateKeyPassword = func() string { return value }
 		p.SSLClientCertificateKeyPasswordSet = true
-	case "sslinsecure":
+	case "tlscertificatefile":
+		p.SSL = true
+		p.SSLSet = true
+		p.SSLCertificateFile = value
+		p.SSLCertificateFileSet = true
+	case "tlsprivatekeyfile":
+		p.SSL = true
+		p.SSLSet = true
+		p.SSLPrivateKeyFile = value
+		p.SSLPrivateKeyFileSet = true
+	case "sslinsecure", "tlsinsecure":
 		switch value {
 		case "true":
 			p.SSLInsecure = true
@@ -569,7 +655,7 @@ func (p *parser) addOption(pair string) error {
 		}
 
 		p.SSLInsecureSet = true
-	case "sslcertificateauthorityfile":
+	case "sslcertificateauthorityfile", "tlscafile":
 		p.SSL = true
 		p.SSLSet = true
 		p.SSLCaFile = value
@@ -617,6 +703,18 @@ func (p *parser) addOption(pair string) error {
 		}
 		p.ZlibLevel = level
 		p.ZlibLevelSet = true
+	case "zstdcompressionlevel":
+		const maxZstdLevel = 22 // https://github.com/facebook/zstd/blob/a880ca239b447968493dd2fed3850e766d6305cc/contrib/linux-kernel/lib/zstd/compress.c#L3291
+		level, err := strconv.Atoi(value)
+		if err != nil || (level < -1 || level > maxZstdLevel) {
+			return fmt.Errorf("invalid value for %s: %s", key, value)
+		}
+
+		if level == -1 {
+			level = wiremessage.DefaultZstdLevel
+		}
+		p.ZstdLevel = level
+		p.ZstdLevelSet = true
 	default:
 		if p.UnknownOptions == nil {
 			p.UnknownOptions = make(map[string][]string)

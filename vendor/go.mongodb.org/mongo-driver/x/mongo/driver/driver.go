@@ -10,8 +10,32 @@ import (
 // Deployment is implemented by types that can select a server from a deployment.
 type Deployment interface {
 	SelectServer(context.Context, description.ServerSelector) (Server, error)
-	SupportsRetry() bool
+	SupportsRetryWrites() bool
 	Kind() description.TopologyKind
+}
+
+// Connector represents a type that can connect to a server.
+type Connector interface {
+	Connect() error
+}
+
+// Disconnector represents a type that can disconnect from a server.
+type Disconnector interface {
+	Disconnect(context.Context) error
+}
+
+// Subscription represents a subscription to topology updates. A subscriber can receive updates through the
+// Updates field.
+type Subscription struct {
+	Updates <-chan description.Topology
+	ID      uint64
+}
+
+// Subscriber represents a type to which another type can subscribe. A subscription contains a channel that
+// is updated with topology descriptions.
+type Subscriber interface {
+	Subscribe() (*Subscription, error)
+	Unsubscribe(*Subscription) error
 }
 
 // Server represents a MongoDB server. Implementations should pool connections and handle the
@@ -28,6 +52,17 @@ type Connection interface {
 	Close() error
 	ID() string
 	Address() address.Address
+}
+
+// LocalAddresser is a type that is able to supply its local address
+type LocalAddresser interface {
+	LocalAddress() address.Address
+}
+
+// Expirable represents an expirable object.
+type Expirable interface {
+	Expire() error
+	Alive() bool
 }
 
 // Compressor is an interface used to compress wire messages. If a Connection supports compression
@@ -48,16 +83,8 @@ type ErrorProcessor interface {
 // handshake over a provided driver.Connection. This is used during connection
 // initialization. Implementations must be goroutine safe.
 type Handshaker interface {
-	Handshake(context.Context, address.Address, Connection) (description.Server, error)
-}
-
-// HandshakerFunc is an adapter to allow the use of ordinary functions as
-// connection handshakers.
-type HandshakerFunc func(context.Context, address.Address, Connection) (description.Server, error)
-
-// Handshake implements the Handshaker interface.
-func (hf HandshakerFunc) Handshake(ctx context.Context, addr address.Address, conn Connection) (description.Server, error) {
-	return hf(ctx, addr, conn)
+	GetDescription(context.Context, address.Address, Connection) (description.Server, error)
+	FinishHandshake(context.Context, Connection) error
 }
 
 // SingleServerDeployment is an implementation of Deployment that always returns a single server.
@@ -71,9 +98,9 @@ func (ssd SingleServerDeployment) SelectServer(context.Context, description.Serv
 	return ssd.Server, nil
 }
 
-// SupportsRetry implements the Deployment interface. It always returns false, because a single
+// SupportsRetryWrites implements the Deployment interface. It always returns Type(0), because a single
 // server does not support retryability.
-func (SingleServerDeployment) SupportsRetry() bool { return false }
+func (SingleServerDeployment) SupportsRetryWrites() bool { return false }
 
 // Kind implements the Deployment interface. It always returns description.Single.
 func (SingleServerDeployment) Kind() description.TopologyKind { return description.Single }
@@ -92,9 +119,9 @@ func (ssd SingleConnectionDeployment) SelectServer(context.Context, description.
 	return ssd, nil
 }
 
-// SupportsRetry implements the Deployment interface. It always returns false, because a single
+// SupportsRetryWrites implements the Deployment interface. It always returns Type(0), because a single
 // connection does not support retryability.
-func (ssd SingleConnectionDeployment) SupportsRetry() bool { return false }
+func (ssd SingleConnectionDeployment) SupportsRetryWrites() bool { return false }
 
 // Kind implements the Deployment interface. It always returns description.Single.
 func (ssd SingleConnectionDeployment) Kind() description.TopologyKind { return description.Single }
@@ -114,20 +141,20 @@ type nopCloserConnection struct{ Connection }
 
 func (ncc nopCloserConnection) Close() error { return nil }
 
-// TODO(GODRUVER-617): We can likely use 1 type for both the RetryType and the RetryMode by using
+// TODO(GODRIVER-617): We can likely use 1 type for both the Type and the RetryMode by using
 // 2 bits for the mode and 1 bit for the type. Although in the practical sense, we might not want to
 // do that since the type of retryability is tied to the operation itself and isn't going change,
 // e.g. and insert operation will always be a write, however some operations are both reads and
 // writes, for instance aggregate is a read but with a $out parameter it's a write.
 
-// RetryType specifies whether a retry is a read, write, or disabled.
-type RetryType uint
+// Type specifies whether an operation is a read, write, or unknown.
+type Type uint
 
-// THese are the availables types of retry.
+// THese are the availables types of Type.
 const (
-	_ RetryType = iota
-	RetryWrite
-	RetryRead
+	_ Type = iota
+	Write
+	Read
 )
 
 // RetryMode specifies the way that retries are handled for retryable operations.

@@ -1,25 +1,40 @@
+# github.com/dgrijalva/jwt-go v3.2.0+incompatible
+## explicit
+github.com/dgrijalva/jwt-go
 # github.com/go-stack/stack v1.8.0
 ## explicit
 github.com/go-stack/stack
 # github.com/golang/snappy v0.0.1
 ## explicit
 github.com/golang/snappy
+# github.com/gorilla/context v1.1.1
+## explicit
+github.com/gorilla/context
 # github.com/gorilla/handlers v1.4.1-0.20190227193432-ac6d24f88de4
 ## explicit
 github.com/gorilla/handlers
 # github.com/gorilla/mux v1.7.1
 ## explicit
 github.com/gorilla/mux
+# github.com/klauspost/compress v1.9.5
+github.com/klauspost/compress/fse
+github.com/klauspost/compress/huff0
+github.com/klauspost/compress/snappy
+github.com/klauspost/compress/zstd
+github.com/klauspost/compress/zstd/internal/xxhash
+# github.com/pkg/errors v0.8.1
+github.com/pkg/errors
 # github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c
 ## explicit
 github.com/xdg/scram
 # github.com/xdg/stringprep v1.0.1-0.20180714160509-73f8eece6fdc
 ## explicit
 github.com/xdg/stringprep
-# go.mongodb.org/mongo-driver v1.0.1-0.20190603174436-aca8709ee868
+# go.mongodb.org/mongo-driver v1.3.1
 ## explicit
 go.mongodb.org/mongo-driver/bson
 go.mongodb.org/mongo-driver/bson/bsoncodec
+go.mongodb.org/mongo-driver/bson/bsonoptions
 go.mongodb.org/mongo-driver/bson/bsonrw
 go.mongodb.org/mongo-driver/bson/bsontype
 go.mongodb.org/mongo-driver/bson/primitive
@@ -41,27 +56,24 @@ go.mongodb.org/mongo-driver/x/mongo/driver/auth/internal/gssapi
 go.mongodb.org/mongo-driver/x/mongo/driver/connstring
 go.mongodb.org/mongo-driver/x/mongo/driver/description
 go.mongodb.org/mongo-driver/x/mongo/driver/dns
+go.mongodb.org/mongo-driver/x/mongo/driver/mongocrypt
+go.mongodb.org/mongo-driver/x/mongo/driver/mongocrypt/options
 go.mongodb.org/mongo-driver/x/mongo/driver/operation
 go.mongodb.org/mongo-driver/x/mongo/driver/session
 go.mongodb.org/mongo-driver/x/mongo/driver/topology
 go.mongodb.org/mongo-driver/x/mongo/driver/uuid
 go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage
-go.mongodb.org/mongo-driver/x/mongo/driverlegacy
-go.mongodb.org/mongo-driver/x/network/command
-go.mongodb.org/mongo-driver/x/network/compressor
-go.mongodb.org/mongo-driver/x/network/connection
-go.mongodb.org/mongo-driver/x/network/result
-go.mongodb.org/mongo-driver/x/network/wiremessage
-# golang.org/x/crypto v0.0.0-20190605123033-f99c8df09eb5
+# golang.org/x/crypto v0.0.0-20200323165209-0ec3e9974c59
 ## explicit
+golang.org/x/crypto/bcrypt
+golang.org/x/crypto/blowfish
 golang.org/x/crypto/pbkdf2
 # golang.org/x/net v0.0.0-20190404232315-eb5bcb51f2a3
 ## explicit
 # golang.org/x/sync v0.0.0-20190423024810-112230192c58
 ## explicit
 golang.org/x/sync/semaphore
-# golang.org/x/text v0.3.1-0.20190405145017-31e7599a6c37
-## explicit
+# golang.org/x/text v0.3.2
 golang.org/x/text/transform
 golang.org/x/text/unicode/norm
 # gopkg.in/mgo.v2 v2.0.0-20180705113604-9856a29383ce

@@ -3,12 +3,21 @@ package wiremessage
 import (
 	"bytes"
 	"strings"
+	"sync/atomic"
 
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 )
 
 // WireMessage represents a MongoDB wire message in binary form.
 type WireMessage []byte
+
+var globalRequestID int32
+
+// CurrentRequestID returns the current request ID.
+func CurrentRequestID() int32 { return atomic.LoadInt32(&globalRequestID) }
+
+// NextRequestID returns the next request ID.
+func NextRequestID() int32 { return atomic.AddInt32(&globalRequestID, 1) }
 
 // OpCode represents a MongoDB wire protocol opcode.
 type OpCode int32
@@ -170,10 +179,16 @@ const (
 	CompressorNoOp CompressorID = iota
 	CompressorSnappy
 	CompressorZLib
+	CompressorZstd
 )
 
-// DefaultZlibLevel is the default level for zlib compression
-const DefaultZlibLevel = 6
+const (
+	// DefaultZlibLevel is the default level for zlib compression
+	DefaultZlibLevel = 6
+	// DefaultZstdLevel is the default level for zstd compression.
+	// Matches https://github.com/wiredtiger/wiredtiger/blob/f08bc4b18612ef95a39b12166abcccf207f91596/ext/compressors/zstd/zstd_compress.c#L299
+	DefaultZstdLevel = 6
+)
 
 // AppendHeaderStart appends a header to the dst slice and returns an index where the wire message
 // starts in dst and the updated slice.

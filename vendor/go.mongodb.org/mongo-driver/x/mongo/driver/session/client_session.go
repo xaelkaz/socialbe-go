@@ -8,6 +8,7 @@ package session // import "go.mongodb.org/mongo-driver/x/mongo/driver/session"
 
 import (
 	"errors"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -73,17 +74,20 @@ type Client struct {
 	Committing     bool
 	Aborting       bool
 	RetryWrite     bool
+	RetryRead      bool
 
 	// options for the current transaction
 	// most recently set by transactionopt
-	CurrentRc *readconcern.ReadConcern
-	CurrentRp *readpref.ReadPref
-	CurrentWc *writeconcern.WriteConcern
+	CurrentRc  *readconcern.ReadConcern
+	CurrentRp  *readpref.ReadPref
+	CurrentWc  *writeconcern.WriteConcern
+	CurrentMct *time.Duration
 
 	// default transaction options
-	transactionRc *readconcern.ReadConcern
-	transactionRp *readpref.ReadPref
-	transactionWc *writeconcern.WriteConcern
+	transactionRc            *readconcern.ReadConcern
+	transactionRp            *readpref.ReadPref
+	transactionWc            *writeconcern.WriteConcern
+	transactionMaxCommitTime *time.Duration
 
 	pool          *Pool
 	state         state
@@ -149,6 +153,9 @@ func NewClientSession(pool *Pool, clientID uuid.UUID, sessionType Type, opts ...
 	if mergedOpts.DefaultWriteConcern != nil {
 		c.transactionWc = mergedOpts.DefaultWriteConcern
 	}
+	if mergedOpts.DefaultMaxCommitTime != nil {
+		c.transactionMaxCommitTime = mergedOpts.DefaultMaxCommitTime
+	}
 
 	servSess, err := pool.GetSession()
 	if err != nil {
@@ -189,8 +196,9 @@ func (c *Client) AdvanceOperationTime(opTime *primitive.Timestamp) error {
 	return nil
 }
 
-// UpdateUseTime updates the session's last used time.
-// Must be called whenver this session is used to send a command to the server.
+// UpdateUseTime sets the session's last used time to the current time. This must be called whenever the session is
+// used to send a command to the server to ensure that the session is not prematurely marked expired in the driver's
+// session pool. If the session has already been ended, this method will return ErrSessionEnded.
 func (c *Client) UpdateUseTime() error {
 	if c.Terminated {
 		return ErrSessionEnded
@@ -277,6 +285,7 @@ func (c *Client) StartTransaction(opts *TransactionOptions) error {
 		c.CurrentRc = opts.ReadConcern
 		c.CurrentRp = opts.ReadPreference
 		c.CurrentWc = opts.WriteConcern
+		c.CurrentMct = opts.MaxCommitTime
 	}
 
 	if c.CurrentRc == nil {
@@ -289,6 +298,10 @@ func (c *Client) StartTransaction(opts *TransactionOptions) error {
 
 	if c.CurrentWc == nil {
 		c.CurrentWc = c.transactionWc
+	}
+
+	if c.CurrentMct == nil {
+		c.CurrentMct = c.transactionMaxCommitTime
 	}
 
 	if !writeconcern.AckWrite(c.CurrentWc) {
@@ -321,6 +334,18 @@ func (c *Client) CommitTransaction() error {
 	}
 	c.state = Committed
 	return nil
+}
+
+// UpdateCommitTransactionWriteConcern will set the write concern to majority and potentially set  a
+// w timeout of 10 seconds. This should be called after a commit transaction operation fails with a
+// retryable error or after a successful commit transaction operation.
+func (c *Client) UpdateCommitTransactionWriteConcern() {
+	wc := c.CurrentWc
+	timeout := 10 * time.Second
+	if wc != nil && wc.GetWTimeout() != 0 {
+		timeout = wc.GetWTimeout()
+	}
+	c.CurrentWc = wc.WithOptions(writeconcern.WMajority(), writeconcern.WTimeout(timeout))
 }
 
 // CheckAbortTransaction checks to see if allowed to abort transaction and returns

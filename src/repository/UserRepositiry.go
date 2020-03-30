@@ -2,35 +2,34 @@ package repository
 
 import (
 	"fmt"
-	"social-golang/src/storage"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/bson"
-
 	"social-golang/src/models"
+	"social-golang/src/storage"
 )
 
 type UserRepositoryMongo struct {
-	db *mongo.Collection
+	db         *mongo.Collection
 	collection string
 }
 
 //NewProfileRepositoryMongo
-func NewUserRepository(collection string) *UserRepositoryMongo{
+func NewUserRepository(collection string) *UserRepositoryMongo {
 	return &UserRepositoryMongo{
-		db: storage.User,
+		db:         storage.User,
 		collection: collection,
 	}
 }
 
 //Save
-func (r *UserRepositoryMongo) Save(user *models.User) error{
+func (r *UserRepositoryMongo) Save(user *models.User) error {
 	res, err := r.db.InsertOne(ctx, user)
 	fmt.Println(res)
-	return  err
+	return err
 }
 
-func (r *UserRepositoryMongo) Update(user *models.User) error{
+func (r *UserRepositoryMongo) Update(user *models.User) error {
 	fmt.Println(user.ID)
 	fmt.Println(user.Subject)
 	res, err := r.db.UpdateOne(ctx, bson.M{"_id": user.ID}, bson.M{"$set": user})
@@ -40,14 +39,14 @@ func (r *UserRepositoryMongo) Update(user *models.User) error{
 }
 
 //Delete
-func (r *UserRepositoryMongo) Delete(id primitive.ObjectID) error{
+func (r *UserRepositoryMongo) Delete(id primitive.ObjectID) error {
 	res, err := r.db.DeleteOne(ctx, bson.M{"_id": id})
 	fmt.Println(res)
 	return err
 }
 
 //FindByID
-func (r *UserRepositoryMongo) FindByID(id primitive.ObjectID) (*models.User, error){
+func (r *UserRepositoryMongo) FindByID(id primitive.ObjectID) (*models.User, error) {
 	var user models.User
 	err := r.db.FindOne(ctx, bson.M{"_id": id}).Decode(&user)
 
@@ -59,7 +58,7 @@ func (r *UserRepositoryMongo) FindByID(id primitive.ObjectID) (*models.User, err
 }
 
 //FindAll
-func (r *UserRepositoryMongo) FindAll() (models.Users, error){
+func (r *UserRepositoryMongo) FindAll() (models.Users, error) {
 	var user models.Users
 
 	cursor, err := r.db.Find(ctx, bson.M{})
@@ -76,9 +75,8 @@ func (r *UserRepositoryMongo) FindAll() (models.Users, error){
 	return user, nil
 }
 
-
 //FindByName
-func (r *UserRepositoryMongo) FindByName(name string) (*models.User, error){
+func (r *UserRepositoryMongo) FindByName(name string) (*models.User, error) {
 	var user models.User
 	err := r.db.FindOne(ctx, bson.M{"firstname": name}).Decode(&user)
 
@@ -89,7 +87,7 @@ func (r *UserRepositoryMongo) FindByName(name string) (*models.User, error){
 	return &user, nil
 }
 
-func (r *UserRepositoryMongo) FindByEmail(Email string) (*models.User, error){
+func (r *UserRepositoryMongo) FindByEmail(Email string) (*models.User, error) {
 	var user models.User
 	err := r.db.FindOne(ctx, bson.M{"email": Email}).Decode(&user)
 

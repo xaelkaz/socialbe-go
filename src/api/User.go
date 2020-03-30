@@ -1,14 +1,17 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"io/ioutil"
 	"net/http"
 	"social-golang/src/models"
 	"social-golang/src/repository"
+	"social-golang/src/storage"
 	"social-golang/src/util"
 )
 
@@ -73,8 +76,10 @@ func FollowSubject(w http.ResponseWriter, req *http.Request) {
 		userRepository.Update(user)
 	}
 }
+
 func CreateUser(w http.ResponseWriter, req *http.Request) {
 	b, err := ioutil.ReadAll(req.Body)
+
 	defer req.Body.Close()
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -86,6 +91,14 @@ func CreateUser(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 
+	if err != nil || msg.Email == "" || msg.Password == "" || msg.Name == "" || msg.Major == "" {
+		util.JSON(w, 400, util.T{
+			"status": 1,
+			"error":  "Body is not valid",
+		})
+		return
+	}
+
 	userRepository := repository.NewUserRepository("User")
 
 	userTemp, err := userRepository.FindByEmail(msg.Email)
@@ -93,6 +106,7 @@ func CreateUser(w http.ResponseWriter, req *http.Request) {
 		var user models.User
 		user.Email = msg.Email
 		user.Name = msg.Name
+		user.Password = util.HashAndSaltPassword(msg.Password)
 		user.Picture = msg.Picture
 		user.StudentId = msg.StudentId
 		user.Major = msg.Major
@@ -151,4 +165,45 @@ func DeleteUserById(w http.ResponseWriter, req *http.Request) {
 	var userId = string(params["id"])
 	userIdHex, _ := primitive.ObjectIDFromHex(userId)
 	UserRepository.Delete(userIdHex)
+}
+
+func LoginUser(w http.ResponseWriter, r *http.Request) {
+	var postUser models.User
+	err := json.NewDecoder(r.Body).Decode(&postUser)
+
+	if err != nil || postUser.Email == "" || postUser.Password == "" {
+		util.JSON(w, 400, util.T{
+			"status": 1,
+			"error":  "Body is not valid",
+		})
+		return
+	}
+
+	var user models.User
+	err = storage.User.FindOne(context.Background(), bson.M{"email": postUser.Email}).Decode(&user)
+
+	if err != nil {
+		util.JSON(w, 400, util.T{
+			"status": 3,
+			"error":  "Not found email",
+		})
+		return
+	}
+
+	if !util.ComparePasswords(user.Password, postUser.Password) {
+		util.JSON(w, 400, util.T{
+			"status": 4,
+			"error":  "Password is incorrect",
+		})
+		return
+	}
+
+	tokenString, expireTime := util.GenerateToken(primitive.ObjectID(user.ID), user.Email)
+
+	util.JSON(w, 200, util.T{
+		"status": 0,
+		"token":  tokenString,
+		"expire": expireTime,
+		"userId": user.ID,
+	})
 }

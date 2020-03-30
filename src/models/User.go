@@ -9,6 +9,7 @@ type User struct {
 	Picture   string             `json:"picture"`
 	StudentId string             `json:"studentId"`
 	Name      string             `json:"name"`
+	Password  string             `json:"password"`
 	Major     string             `json:"major"`
 	Email     string             `json:"email"`
 	Subject   []*Subject         `json:"subject" bson:"subject"`
