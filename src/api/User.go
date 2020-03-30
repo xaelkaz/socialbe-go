@@ -4,18 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
-	"social-golang/src/models"
-	"social-golang/src/repository"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"io/ioutil"
 	"net/http"
+	"social-golang/src/models"
+	"social-golang/src/repository"
+	"social-golang/src/util"
 )
 
 func AddUser(w http.ResponseWriter, req *http.Request) {
-	//
 
 	userRepository := repository.NewUserRepository("User")
-
 	//get variable by path
 	params := mux.Vars(req)
 	var firstName, lastName, Email string
@@ -31,7 +30,6 @@ func AddUser(w http.ResponseWriter, req *http.Request) {
 }
 
 func GetUserByEmail(w http.ResponseWriter, req *http.Request) {
-	//
 
 	userRepository := repository.NewUserRepository("User")
 
@@ -100,12 +98,16 @@ func CreateUser(w http.ResponseWriter, req *http.Request) {
 		user.Major = msg.Major
 		userRepository.Save(&user)
 	} else {
-		json.NewEncoder(w).Encode("Can not confirm account this email is already used!")
+		util.JSON(w, 500, util.T{
+			"status":  false,
+			"message": "Can not confirm account this email is already used!",
+			"err":     err,
+		})
+		return
 	}
-
 }
+
 func UnfollowSubject(w http.ResponseWriter, req *http.Request) {
-	//
 
 	userRepository := repository.NewUserRepository("User")
 
@@ -127,11 +129,19 @@ func UnfollowSubject(w http.ResponseWriter, req *http.Request) {
 func GetUserAll(w http.ResponseWriter, req *http.Request) {
 
 	UserRepository := repository.NewUserRepository("User")
-	user, err2 := UserRepository.FindAll()
-	if err2 != nil {
-		fmt.Println(err2)
+	user, err := UserRepository.FindAll()
+	if err != nil {
+		fmt.Println(err)
+		util.JSON(w, 500, util.T{
+			"status": 1,
+			"error":  err.Error(),
+		})
+		return
 	}
-	json.NewEncoder(w).Encode(user)
+	util.JSON(w, 200, util.T{
+		"user":   user,
+		"status": 0,
+	})
 }
 
 func DeleteUserById(w http.ResponseWriter, req *http.Request) {

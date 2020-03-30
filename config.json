@@ -6,8 +6,8 @@
     "file_static_port": "8001",
 
     "storage": {
-        "uri": "mongodb+srv://admin:admin@cluster0-jbht2.gcp.mongodb.net/test?retryWrites=true&w=majority",
-        "name": "CourseOnline"
+        "uri": "mongodb+srv://xbernikov:xavip14@xbcluster0-dfl0s.mongodb.net/test?retryWrites=true&w=majority",
+        "name": "SocialApp"
     },
 
     "jwt_key": "123456",
