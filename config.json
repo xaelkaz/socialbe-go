@@ -1,0 +1,15 @@
+{
+    "threads": 4,
+    "name": "CourseOnline",
+    "server_ip": "localhost",
+    "port": "8000",
+    "file_static_port": "8001",
+
+    "storage": {
+        "uri": "mongodb+srv://admin:admin@cluster0-jbht2.gcp.mongodb.net/test?retryWrites=true&w=majority",
+        "name": "CourseOnline"
+    },
+
+    "jwt_key": "123456",
+    "jwt_expire": 30
+}
