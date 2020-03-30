@@ -77,6 +77,8 @@ func setRouter(r *mux.Router) {
 	r.HandleFunc("/api/comments", api.GetCommentAll).Methods("GET")
 	r.HandleFunc("/api/commenttext/{text}", api.AddComment).Methods("GET")
 	r.HandleFunc("/api/comment/{postID}", api.AddComment).Methods("POST")
+	r.HandleFunc("/api/nestedcomment/{postID}/{replyID}", api.AddNestedComment).Methods("POST")
+
 	r.HandleFunc("/api/deletecomment/{id}", api.DeleteCommentById).Methods("GET")
 	r.HandleFunc("/api/deletecomment/{id}/{postid}", api.DeleteCommentByIdANDPostId).Methods("GET")
 	//feedback
